@@ -74,7 +74,7 @@ class TradeReport(object):
     def __init__(
             self, *,
             ticker: str,
-            side: int| float| str| TransactionSide,
+            side: int | float | str | TransactionSide,
             volume: float,
             notional: float,
             trade_time: datetime.datetime,
@@ -165,7 +165,7 @@ class TradeReport(object):
         )
         return trade
 
-    def to_json(self, fmt: str = 'str') -> str| dict:
+    def to_json(self, fmt: str = 'str') -> str | dict:
         json_dict = {
             'ticker': self.__ticker,
             'side': self.__side.name,
@@ -201,7 +201,7 @@ class TradeReport(object):
         return new_trade
 
     @classmethod
-    def from_json(cls, json_message: str| bytes| bytearray| dict) -> TradeReport:
+    def from_json(cls, json_message: str | bytes | bytearray | dict) -> TradeReport:
         if isinstance(json_message, dict):
             json_dict = json_message
         else:
@@ -289,10 +289,10 @@ class TradeInstruction(object):
     def __init__(
             self, *,
             ticker: str,
-            side: int| float| str| TransactionSide,
+            side: int | float | str | TransactionSide,
             order_type: OrderType = OrderType.Manual,
             volume: float = 0.0,
-            limit_price: float= None,
+            limit_price: float = None,
             order_id: str = None,
             multiplier: float = 1
     ):
@@ -312,8 +312,8 @@ class TradeInstruction(object):
         self.__filled_notional: float = 0.0
         self.__fee = .0
         self.__start_datetime: datetime.datetime | None = None
-        self.__cancel_datetime: datetime.datetime | None= None
-        self.__finish_datetime: datetime.datetime| None = None
+        self.__cancel_datetime: datetime.datetime | None = None
+        self.__finish_datetime: datetime.datetime | None = None
         self.__trades: dict[str, TradeReport] = {}
 
     def __repr__(self):
@@ -341,9 +341,9 @@ class TradeInstruction(object):
         self.__filled_volume: float = 0.0
         self.__filled_notional: float = 0.0
         self.__fee = .0
-        self.__start_datetime: datetime.datetime| None = None
-        self.__cancel_datetime: datetime.datetime | None= None
-        self.__finish_datetime: datetime.datetime | None= None
+        self.__start_datetime: datetime.datetime | None = None
+        self.__cancel_datetime: datetime.datetime | None = None
+        self.__finish_datetime: datetime.datetime | None = None
         self.__trades: dict[str, TradeReport] = {}
 
     def reset_order_id(self, order_id: str = None, **kwargs) -> TradeInstruction:
@@ -373,7 +373,7 @@ class TradeInstruction(object):
             self.__start_datetime = market_datetime
 
         if order_state == OrderState.Canceled:
-            self.__cancel_datetime= market_datetime
+            self.__cancel_datetime = market_datetime
             self.__finish_datetime = market_datetime
 
         return self
@@ -425,7 +425,7 @@ class TradeInstruction(object):
         self.set_order_state(OrderState.Canceled, canceled_datetime)
         return self
 
-    def to_json(self, with_trade=True, fmt: str = 'str') -> str| dict:
+    def to_json(self, with_trade=True, fmt: str = 'str') -> str | dict:
         json_dict = {
             'ticker': self.__ticker,
             'side': self.__side.name,
@@ -450,7 +450,7 @@ class TradeInstruction(object):
             return json.dumps(json_dict)
 
     @classmethod
-    def from_json(cls, json_message: str| bytes| bytearray| dict) -> TradeInstruction:
+    def from_json(cls, json_message: str | bytes | bytearray | dict) -> TradeInstruction:
         if isinstance(json_message, dict):
             json_dict = json_message
         else:
@@ -518,19 +518,19 @@ class TradeInstruction(object):
         return self.__volume
 
     @property
-    def limit_price(self) -> float| None:
+    def limit_price(self) -> float | None:
         return self.__limit_price
 
     @property
-    def start_time(self) -> datetime.datetime| None:
+    def start_time(self) -> datetime.datetime | None:
         return self.__start_datetime
 
     @property
-    def cancel_time(self) -> datetime.datetime| None:
+    def cancel_time(self) -> datetime.datetime | None:
         return self.__cancel_datetime
 
     @property
-    def finish_time(self) -> datetime.datetime| None:
+    def finish_time(self) -> datetime.datetime | None:
         return self.__finish_datetime
 
     @property
