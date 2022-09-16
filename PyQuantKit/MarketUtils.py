@@ -23,9 +23,9 @@ __all__ = ['BarData', 'MarketData', 'OrderBook', 'TickData', 'TransactionData', 
 class TransactionSide(enum.Enum):
     ShortOrder = AskOrder = Offer_to_Short = -3
     ShortOpen = Sell_to_Short = -2
-    LongClose = ShortFilled = Sell_to_Unwind = ask = -1
+    ShortFilled = LongClose = Sell_to_Unwind = ask = -1
     UNKNOWN = CANCEL = 0
-    LongOpen = LongFilled = Buy_to_Long = bid = 1
+    LongFilled = LongOpen = Buy_to_Long = bid = 1
     ShortClose = Buy_to_Cover = 2
     LongOrder = BidOrder = Bid_to_Long = 3
 
@@ -51,7 +51,7 @@ class TransactionSide(enum.Enum):
 
     def __neg__(self) -> TransactionSide:
         """
-        return the opposite trade side, Long -> Short and Short -> Long
+        return a opposite trade side, Long -> Short and Short -> Long
         :return: tr
         """
         if self is self.LongOpen:
@@ -72,9 +72,6 @@ class TransactionSide(enum.Enum):
 
     def __hash__(self):
         return self.value
-
-    def __repr__(self):
-        return f"<TransactionSide.{self.name}>"
 
     @classmethod
     def from_offset(cls, direction: str, offset: str) -> TransactionSide:
@@ -310,6 +307,60 @@ class OrderBook(MarketData):
 
         def __bool__(self):
             return bool(self._book) and all(self._book)
+
+        def __sub__(self, other: OrderBook.Book) -> dict[float, float]:
+            if not isinstance(other, self.__class__):
+                raise TypeError(f'Expect type {self.__class__}, got {type(other)}')
+
+            if self.side.order_sign != other.side.order_sign:
+                raise ValueError(f'Expect side {self.side}, got {other.side}')
+
+            diff = {}
+
+            # bid book
+            if (not self._dict) or (not other._dict):
+                pass
+            elif self.side.order_sign > 0:
+                limit_0 = min(self._dict)
+                limit_1 = min(other._dict)
+                limit = max(limit_0, limit_1)
+                contain_limit = True if limit_0 == limit_1 else False
+
+                for _ in self:
+                    price = _.price
+                    volume = _.volume
+
+                    if price > limit or (price >= limit and contain_limit):
+                        diff[price] = volume
+
+                for _ in other:
+                    price = _.price
+                    volume = _.volume
+
+                    if price > limit or (price >= limit and contain_limit):
+                        diff[price] = diff.get(price, 0.) - volume
+            # ask book
+            else:
+                limit_0 = max(self._dict)
+                limit_1 = max(other._dict)
+                limit = min(limit_0, limit_1)
+                contain_limit = True if limit_0 == limit_1 else False
+
+                for _ in self:
+                    price = _.price
+                    volume = _.volume
+
+                    if price < limit or (price <= limit and contain_limit):
+                        diff[price] = volume
+
+                for _ in other:
+                    price = _.price
+                    volume = _.volume
+
+                    if price < limit or (price <= limit and contain_limit):
+                        diff[price] = diff.get(price, 0.) - volume
+
+            return diff
 
         def get(self, item=None, **kwargs) -> OrderBook.OrderBookEntry | None:
             if item is None:
@@ -548,6 +599,28 @@ class OrderBook(MarketData):
     def __bool__(self):
         return bool(self.bid) and bool(self.ask)
 
+    def __sub__(self, other: OrderBook):
+        if not isinstance(other, self.__class__):
+            raise TypeError(f'Expect type {self.__class__}, got {type(other)}')
+
+        if self.ticker != other.ticker:
+            raise ValueError(f'Expect ticker {self.ticker}, got {other.ticker}')
+
+        if self.timestamp < other.timestamp:
+            LOGGER.warning(f'Expect subtracted by newer order book, timestamp should >= {self.timestamp}, got {other.timestamp}')
+
+        bid_diff = self.bid - other.bid
+        ask_diff = self.ask - other.ask
+
+        _ = OrderBookDiff(
+            ticker=self.ticker,
+            timestamp=other.timestamp,
+            bid_diff=bid_diff,
+            ask_diff=ask_diff
+        )
+
+        return _
+
     @overload
     def update(
             self,
@@ -663,7 +736,7 @@ class OrderBook(MarketData):
     @property
     def market_price(self):
         """
-        Mid-price for the order book snapshot
+        Mid-price for a order book snapshot
         :return: float
         """
         if np.isfinite(self.best_bid_price) and self.best_bid_price != 0 and np.isfinite(self.best_ask_price) and self.best_ask_price != 0:
@@ -741,7 +814,7 @@ class BarData(MarketData):
         :param low_price: min traded price of the given time frame
         :param open_price: trading price at the start of the bar
         :param close_price: trading price at the end of the bar
-        :param bar_start_time: `datetime.date` for a daily bar or datetime.datetime for more detailed bar
+        :param bar_start_time: datetime.date for a daily bar or datetime.datetime for more detailed bar
         :param bar_span: the length of the given time frame
         :param volume: sum of traded volume at the given time frame
         :param notional: sum of traded notional, or turnover
