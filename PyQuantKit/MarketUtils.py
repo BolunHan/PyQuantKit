@@ -194,6 +194,12 @@ class MarketData(object):
     def __hash__(self):
         return id(self)
 
+    def __copy__(self):
+        return self.__class__.from_json(self.to_json(fmt='dict'))
+
+    def copy(self):
+        return self.__copy__()
+
     @property
     @abc.abstractmethod
     def market_time(self) -> datetime.datetime | datetime.date | float | int:
@@ -209,7 +215,7 @@ class MarketData(object):
         ...
 
     @classmethod
-    def from_json(cls, json_message: str | bytes | bytearray) -> MarketData:
+    def from_json(cls, json_message: str | bytes | bytearray | dict) -> MarketData:
         if isinstance(json_message, dict):
             json_dict = json_message
         else:
@@ -663,7 +669,7 @@ class OrderBook(MarketData):
                 self.additional[name] = data[name]
                 LOGGER.warning(f'invalid name {name}, but still will store the data')
 
-    def to_json(self, **kwargs) -> str:
+    def to_json(self, fmt='str', **kwargs) -> str | dict:
         data_dict = {
             'dtype': self.__class__.__name__,
             'ticker': self.ticker,
@@ -675,7 +681,10 @@ class OrderBook(MarketData):
         if self.additional:
             data_dict['additional'] = self.additional
 
-        return json.dumps(data_dict, **kwargs)
+        if fmt == 'dict':
+            return data_dict
+        else:
+            return json.dumps(data_dict, **kwargs)
 
     def get_book(self, side: TransactionSide, opposite=False) -> Book:
         """
@@ -885,7 +894,7 @@ class BarData(MarketData):
         else:
             return f'<BarData>([{self.bar_start_time:%Y-%m-%d %H:%M:%S}] {self.ticker} Opened @ {self.open_price}; Closed @ {self.close_price}; Lasted {self.bar_span})'
 
-    def to_json(self, **kwargs) -> str:
+    def to_json(self, fmt='str', **kwargs) -> str | dict:
         data_dict = {
             'dtype': self.__class__.__name__,
             'ticker': self.ticker,
@@ -903,7 +912,10 @@ class BarData(MarketData):
         if self.additional:
             data_dict['additional'] = self.additional
 
-        return json.dumps(data_dict, **kwargs)
+        if fmt == 'dict':
+            return data_dict
+        else:
+            return json.dumps(data_dict, **kwargs)
 
     @classmethod
     def from_json(cls, json_message: str | bytes | bytearray | dict) -> BarData:
@@ -1116,7 +1128,7 @@ class TickData(MarketData):
     def __str__(self):
         return f'<TickData>([{self.market_time:%Y-%m-%d %H:%M:%S}] {self.ticker} {{Bid: ({self.bid_price}: {self.bid_volume}), Ask: ({self.ask_price}: {self.ask_volume}), Last: {self.last_price}}})'
 
-    def to_json(self, **kwargs) -> str:
+    def to_json(self, fmt='str', **kwargs) -> str | dict:
         data_dict = {
             'dtype': self.__class__.__name__,
             'ticker': self.ticker,
@@ -1132,7 +1144,10 @@ class TickData(MarketData):
         if self.additional:
             data_dict['additional'] = self.additional
 
-        return json.dumps(data_dict, **kwargs)
+        if fmt == 'dict':
+            return data_dict
+        else:
+            return json.dumps(data_dict, **kwargs)
 
     @classmethod
     def from_json(cls, json_message: str | bytes | bytearray | dict) -> TickData:
@@ -1260,7 +1275,7 @@ class TradeData(MarketData):
     def __str__(self):
         return '<TradeData>([{:%Y-%m-%d %H:%M:%S}] {} {} {:.2f} @ {:.2f} notional {:.2f})'.format(self.trade_time, self.ticker, self.side.name, self.volume, self.price, self.notional)
 
-    def to_json(self, **kwargs) -> str:
+    def to_json(self, fmt='str', **kwargs) -> str | dict:
 
         data_dict = {
             'dtype': self.__class__.__name__,
@@ -1281,7 +1296,10 @@ class TradeData(MarketData):
         if self.additional:
             data_dict['additional'] = self.additional
 
-        return json.dumps(data_dict, **kwargs)
+        if fmt == 'dict':
+            return data_dict
+        else:
+            return json.dumps(data_dict, **kwargs)
 
     @classmethod
     def from_json(cls, json_message: str | bytes | bytearray | dict) -> TradeData:
@@ -1433,7 +1451,7 @@ class TransactionData(MarketData):
     def __str__(self):
         return '<TransactionData>([{:%Y-%m-%d %H:%M:%S}] {} {} {:.2f} @ {:.2f} notional {:.2f})'.format(self.market_time, self.ticker, self.side.name, self.volume, self.price, self.notional)
 
-    def to_json(self, **kwargs) -> str:
+    def to_json(self, fmt='str', **kwargs) -> str | dict:
 
         data_dict = {
             'dtype': self.__class__.__name__,
@@ -1444,7 +1462,10 @@ class TransactionData(MarketData):
 
         data_dict.update({key: value for key, value in self.__dict__.items() if key not in ['_ticker', 'side', 'timestamp']})
 
-        return json.dumps(data_dict, **kwargs)
+        if fmt == 'dict':
+            return data_dict
+        else:
+            return json.dumps(data_dict, **kwargs)
 
     @classmethod
     def from_json(cls, json_message: str | bytes | bytearray | dict) -> TransactionData:
@@ -1548,7 +1569,7 @@ class OrderBookDiff(MarketData):
     def __str__(self):
         return f'<OrderBookDiff>([{self.market_time:%Y-%m-%d %H:%M:%S}] {self.ticker} with {len(self.bid_diff) + len(self.ask_diff)} diffs)'
 
-    def to_json(self, **kwargs) -> str:
+    def to_json(self, fmt='str', **kwargs) -> str | dict:
 
         data_dict = {
             'dtype': self.__class__.__name__,
@@ -1561,7 +1582,10 @@ class OrderBookDiff(MarketData):
         if self.additional:
             data_dict['additional'] = self.additional
 
-        return json.dumps(data_dict, **kwargs)
+        if fmt == 'dict':
+            return data_dict
+        else:
+            return json.dumps(data_dict, **kwargs)
 
     @classmethod
     def from_json(cls, json_message: str | bytes | bytearray | dict) -> OrderBookDiff:
