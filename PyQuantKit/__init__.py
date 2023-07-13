@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-__version__ = '0.2.0.a'
+__version__ = '0.2.1'
 
 import logging
-import sys
 import time
 
 LOGGER: logging.Logger | None = None
