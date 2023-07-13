@@ -77,8 +77,9 @@ class TradeReport(object):
             side: int | float | str | TransactionSide,
             volume: float,
             notional: float,
-            trade_time: datetime.datetime,
             order_id: str,
+            timestamp: float = None,
+            trade_time: datetime.datetime = None,
             price: float = None,
             trade_id: str = None,
             multiplier: float = 1,
@@ -90,7 +91,7 @@ class TradeReport(object):
         :param side: TransactionSide should be the same as TradeInstruction
         :param volume: Traded volume (the number of shares, contracts or crypto, etc.)
         :param notional: Traded notional (the amount of money) or premium of the option
-        :param trade_time: datetime.datetime when trade was matched
+        :param timestamp: Timestamp when trade was matched
         :param order_id: the id of its TradeInstruction
         :param price: the traded price. NOTED: trade price does not necessarily equal notional / volume. For example, currency swap, crypto swap (future) and debt
         :param trade_id: the id of itself
@@ -104,7 +105,7 @@ class TradeReport(object):
         self.__price = price
         self.__volume = volume
         self.__notional = notional
-        self.__trade_time = trade_time
+        self.__timestamp = trade_time.timestamp() if timestamp is None else timestamp
         self.__order_id = str(order_id)
         self.__trade_id = str(trade_id) if trade_id is not None else str(uuid.uuid4())
         self.__multiplier = float(multiplier)
@@ -172,7 +173,7 @@ class TradeReport(object):
             'price': self.__price,
             'volume': self.__volume,
             'notional': self.__notional,
-            'trade_time': self.__trade_time.timestamp(),
+            'timestamp': self.__timestamp,
             'order_id': self.__order_id,
             'trade_id': self.__trade_id,
             'multiplier': self.__multiplier,
@@ -190,7 +191,7 @@ class TradeReport(object):
             side=kwargs.pop('side', self.__side),
             volume=kwargs.pop('volume', self.__volume),
             notional=kwargs.pop('notional', self.__notional),
-            trade_time=kwargs.pop('trade_time', self.__trade_time),
+            timestamp=kwargs.pop('timestamp', self.__timestamp),
             order_id=kwargs.pop('order_id', None),
             price=kwargs.pop('price', self.__price),
             trade_id=kwargs.pop('trade_id', f'{self.__trade_id}.copy'),
@@ -213,7 +214,7 @@ class TradeReport(object):
             volume=json_dict['volume'],
             price=json_dict['price'],
             notional=json_dict['notional'],
-            trade_time=datetime.datetime.fromtimestamp(json_dict['trade_time']),
+            timestamp=json_dict['timestamp'],
             order_id=json_dict['order_id'],
             trade_id=json_dict['trade_id'],
             multiplier=json_dict['multiplier'],
@@ -229,7 +230,7 @@ class TradeReport(object):
             side=trade_data.side,
             volume=trade_data.volume,
             notional=trade_data.notional,
-            trade_time=trade_data.trade_time,
+            timestamp=trade_data.timestamp,
             order_id=order_id,
             trade_id=trade_id
         )
@@ -270,11 +271,11 @@ class TradeReport(object):
 
     @property
     def trade_time(self) -> datetime.datetime:
-        return self.__trade_time
+        return datetime.datetime.fromtimestamp(self.__timestamp)
 
     @property
     def timestamp(self):
-        return self.__trade_time.timestamp()
+        return self.__timestamp
 
     @property
     def order_id(self) -> str:
