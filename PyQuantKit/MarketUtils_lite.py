@@ -233,6 +233,12 @@ class MarketData(dict, metaclass=abc.ABCMeta):
         return self['timestamp']
 
     @property
+    def additional(self):
+        if 'additional' not in self:
+            self['additional'] = {}
+        return self['additional']
+
+    @property
     def topic(self) -> str:
         return f'{self.ticker}.{self.__class__.__name__}'
 
