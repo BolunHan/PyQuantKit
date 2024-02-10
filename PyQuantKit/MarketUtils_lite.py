@@ -14,7 +14,7 @@ import numpy as np
 from . import LOGGER
 
 LOGGER = LOGGER.getChild('MarketUtils')
-__all__ = ['BarData', 'MarketData', 'OrderBook', 'TickData', 'TransactionData', 'TransactionSide', 'TIME_ZONE']
+__all__ = ['BarData', 'MarketData', 'OrderBook', 'TickData', 'TransactionData', 'TradeData', 'TransactionSide', 'TIME_ZONE']
 
 TIME_ZONE = None
 
@@ -940,3 +940,22 @@ class TransactionData(MarketData):
     @property
     def flow(self):
         return self.side.sign * self.volume
+
+
+class TradeData(TransactionData):
+    def __init__(self, **kwargs):
+        if 'trade_price' in kwargs:
+            kwargs['price'] = kwargs.pop('trade_price')
+
+        if 'trade_volume' in kwargs:
+            kwargs['volume'] = kwargs.pop('trade_volume')
+
+        super().__init__(**kwargs)
+
+    @property
+    def trade_price(self) -> float:
+        return self['price']
+
+    @property
+    def trade_volume(self) -> float:
+        return self['volume']

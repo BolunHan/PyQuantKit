@@ -7,7 +7,7 @@ import uuid
 from enum import Enum
 
 from . import LOGGER
-from .MarketUtils import TransactionSide, TradeData
+from .MarketUtils_lite import TransactionSide, TransactionData
 
 LOGGER = LOGGER.getChild('TradeUtils')
 __all__ = ['OrderState', 'OrderType', 'TradeInstruction', 'TradeReport']
@@ -155,12 +155,12 @@ class TradeReport(object):
 
         return self
 
-    def to_trade(self) -> TradeData:
-        trade = TradeData(
+    def to_trade(self) -> TransactionData:
+        trade = TransactionData(
             ticker=self.ticker,
-            trade_time=self.trade_time,
-            trade_price=self.notional / self.volume / self.multiplier if self.volume > 0 else 0,
-            trade_volume=self.volume,
+            timestamp=self.timestamp,
+            price=self.notional / self.volume / self.multiplier if self.volume > 0 else 0,
+            volume=self.volume,
             side=self.side,
             multiplier=self.multiplier
         )
