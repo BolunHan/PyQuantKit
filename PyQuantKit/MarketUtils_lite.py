@@ -843,7 +843,7 @@ class TransactionData(MarketData):
         self.update(
             price=float(price),
             volume=float(volume),
-            side=side.value if isinstance(side, TransactionSide) else int(side)
+            side=side if isinstance(side, (int, float)) else TransactionSide(side).value
         )
 
         if 'multiplier' in kwargs:
