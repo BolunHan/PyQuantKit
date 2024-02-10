@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 import logging
 import sys
@@ -88,7 +88,8 @@ def set_logger(logger: logging.Logger):
 _ = get_logger()
 
 from ._FinanceDecimal import *
-from .MarketUtils import *
+from .MarketUtils_lite import *
+# from .MarketUtils2 import *
 from .TechnicalAnalysis import *
 from .TradeUtils import *
 from .ConsoleUtils import *
