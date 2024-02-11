@@ -7,7 +7,7 @@ import json
 import math
 import re
 import warnings
-from typing import overload, Hashable
+from typing import overload
 
 import numpy as np
 
@@ -219,8 +219,31 @@ class MarketData(dict, metaclass=abc.ABCMeta):
             return TickData.from_json(json_dict)
         elif dtype == 'TransactionData':
             return TransactionData.from_json(json_dict)
+        elif dtype == 'TradeData':
+            return TradeData.from_json(json_dict)
         elif dtype == 'OrderBook':
             return OrderBook.from_json(json_dict)
+        else:
+            raise TypeError(f'Invalid dtype {dtype}')
+
+    @abc.abstractmethod
+    def to_list(self) -> list[float | int | str | bool]:
+        ...
+
+    @classmethod
+    def from_list(cls, data_list: list[float | int | str | bool]) -> MarketData:
+        dtype = data_list[0]
+
+        if dtype == 'BarData':
+            return BarData.from_list(data_list)
+        elif dtype == 'TickData':
+            return TickData.from_list(data_list)
+        elif dtype == 'TransactionData':
+            return TransactionData.from_list(data_list)
+        elif dtype == 'TradeData':
+            return TradeData.from_list(data_list)
+        elif dtype == 'OrderBook':
+            return OrderBook.from_list(data_list)
         else:
             raise TypeError(f'Invalid dtype {dtype}')
 
@@ -387,7 +410,7 @@ class OrderBook(MarketData):
             if order:
                 self._book.append((price, volume, order))
             else:
-                self._book.append((price, volume))
+                self._book.append((price, volume, 0))
 
         def loc_volume(self, p0: float, p1: float):
             volume = 0.
@@ -422,7 +445,7 @@ class OrderBook(MarketData):
 
             return [entry[1] for entry in self._book]
 
-    def __init__(self, *, ticker: str, timestamp: float = None, **kwargs):
+    def __init__(self, *, ticker: str, timestamp: float, **kwargs):
         super().__init__(ticker=ticker, timestamp=timestamp)
         self.update(
             bid=kwargs.pop('bid', []),
@@ -514,6 +537,31 @@ class OrderBook(MarketData):
         self = cls(**json_dict)
         return self
 
+    def to_list(self) -> list[float | int | str | bool]:
+        min_length = min(len(self.bid), len(self.ask))
+        r = ([self.__class__.__name__, self.ticker, self.timestamp]
+             + [value for entry in self.bid[:min_length] for value in entry]
+             + [value for entry in self.ask[:min_length] for value in entry])
+
+        return r
+
+    @classmethod
+    def from_list(cls, data_list: list[float | int | str | bool]) -> OrderBook:
+        dtype, ticker, timestamp = data_list[:3]
+        bid_data, ask_data = np.array(data_list[3:]).reshape(2, -1).tolist()
+        bid = np.array(bid_data).reshape(-1, 3).tolist()
+        ask = np.array(ask_data).reshape(-1, 3).tolist()
+
+        if dtype != cls.__name__:
+            raise TypeError(f'dtype mismatch, expect {cls.__name__}, got {dtype}.')
+
+        return cls(
+            ticker=ticker,
+            timestamp=timestamp,
+            bid=bid,
+            ask=ask
+        )
+
     @property
     def market_price(self):
         return self.mid_price
@@ -589,7 +637,7 @@ class BarData(MarketData):
             self, *,
             ticker: str,
             timestamp: float,  # the bar end timestamp
-            start_timestamp: float,
+            start_timestamp: float = None,
             bar_span: datetime.timedelta = None,
             high_price: float = math.nan,
             low_price: float = math.nan,
@@ -606,12 +654,22 @@ class BarData(MarketData):
             low_price=low_price,
             open_price=open_price,
             close_price=close_price,
-            start_timestamp=start_timestamp,
-            bar_span=bar_span,
             volume=volume,
             notional=notional,
             trade_count=trade_count
         )
+
+        if bar_span is None and start_timestamp is None:
+            raise ValueError('Must assign ether start_timestamp or bar_span or both.')
+        elif start_timestamp is None:
+            # self['start_timestamp'] = timestamp - bar_span.total_seconds()
+            self['bar_span'] = bar_span.total_seconds()
+        elif bar_span is None:
+            self['start_timestamp'] = start_timestamp
+            # self['bar_span'] = timestamp - start_timestamp
+        else:
+            self['start_timestamp'] = start_timestamp
+            self['bar_span'] = bar_span.total_seconds()
 
     def __repr__(self):
         return f'<BarData>([{self.market_time:%Y-%m-%d %H:%M:%S}] {self.ticker}, open={self.open_price}, close={self.close_price}, high={self.high_price}, low={self.low_price})'
@@ -629,6 +687,42 @@ class BarData(MarketData):
 
         self = cls(**json_dict)
         return self
+
+    def to_list(self) -> list[float | int | str | bool]:
+        return [self.__class__.__name__,
+                self.ticker,
+                self.timestamp,
+                self.high_price,
+                self.low_price,
+                self.open_price,
+                self.close_price,
+                self.get('start_timestamp'),
+                self.get('bar_span'),
+                self.volume,
+                self.notional,
+                self.trade_count]
+
+    @classmethod
+    def from_list(cls, data_list: list[float | int | str | bool]) -> BarData:
+        (dtype, ticker, timestamp, high_price, low_price, open_price, close_price,
+         start_timestamp, bar_span, volume, notional, trade_count) = data_list
+
+        if dtype != cls.__name__:
+            raise TypeError(f'dtype mismatch, expect {cls.__name__}, got {dtype}.')
+
+        return cls(
+            ticker=ticker,
+            timestamp=timestamp,
+            high_price=high_price,
+            low_price=low_price,
+            open_price=open_price,
+            close_price=close_price,
+            start_timestamp=start_timestamp if start_timestamp else None,
+            bar_span=datetime.timedelta(bar_span) if bar_span else None,
+            volume=volume,
+            notional=notional,
+            trade_count=trade_count
+        )
 
     @property
     def high_price(self) -> float:
@@ -648,11 +742,10 @@ class BarData(MarketData):
 
     @property
     def bar_span(self) -> datetime.timedelta:
-        bar_span = self['bar_span']
-
-        if bar_span is None:
-            datetime.timedelta(seconds=self['timestamp'] - self['start_timestamp'])
-        return bar_span
+        if 'bar_span' in self:
+            return datetime.timedelta(seconds=self['bar_span'])
+        else:
+            return datetime.timedelta(seconds=self['timestamp'] - self['start_timestamp'])
 
     @property
     def volume(self) -> float:
@@ -668,7 +761,10 @@ class BarData(MarketData):
 
     @property
     def bar_start_time(self) -> datetime.datetime:
-        return datetime.datetime.fromtimestamp(self['bar_start_time'], tz=TIME_ZONE)
+        if 'start_timestamp' in self:
+            return datetime.datetime.fromtimestamp(self['start_timestamp'], tz=TIME_ZONE)
+        else:
+            return datetime.datetime.fromtimestamp(self['timestamp'] - self['bar_span'], tz=TIME_ZONE)
 
     @property
     def vwap(self) -> float:
@@ -777,20 +873,20 @@ class TickData(MarketData):
         return self['last_price']
 
     @property
-    def bid_price(self) -> float:
-        return self['bid_price_1']
+    def bid_price(self) -> float | None:
+        return self.get('bid_price_1')
 
     @property
-    def ask_price(self) -> float:
-        return self['ask_price_1']
+    def ask_price(self) -> float | None:
+        return self.get('ask_price_1')
 
     @property
-    def bid_volume(self) -> float:
-        return self['bid_volume_1']
+    def bid_volume(self) -> float | None:
+        return self.get('bid_volume_1')
 
     @property
-    def ask_volume(self) -> float:
-        return self['ask_volume_1']
+    def ask_volume(self) -> float | None:
+        return self.get('ask_volume_1')
 
     @property
     def total_traded_volume(self) -> float:
@@ -821,6 +917,52 @@ class TickData(MarketData):
         self = cls(**json_dict)
         return self
 
+    def to_list(self) -> list[float | int | str | bool]:
+        return [self.__class__.__name__,
+                self.ticker,
+                self.timestamp,
+                self.last_price,
+                self.bid_price,
+                self.ask_price,
+                self.bid_volume,
+                self.ask_volume,
+                self.total_traded_volume,
+                self.total_traded_notional,
+                self.total_trade_count]
+
+    @classmethod
+    def from_list(cls, data_list: list[float | int | str | bool]) -> TickData:
+        (dtype, ticker, timestamp, last_price,
+         bid_price, ask_price, bid_volume, ask_volume,
+         total_traded_volume, total_traded_notional, total_trade_count) = data_list
+
+        if dtype != cls.__name__:
+            raise TypeError(f'dtype mismatch, expect {cls.__name__}, got {dtype}.')
+
+        kwargs = {}
+
+        if bid_price is not None:
+            kwargs['bid_price'] = bid_price
+
+        if ask_price is not None:
+            kwargs['ask_price'] = ask_price
+
+        if bid_volume is not None:
+            kwargs['bid_volume'] = bid_volume
+
+        if ask_volume is not None:
+            kwargs['ask_volume'] = ask_volume
+
+        return cls(
+            ticker=ticker,
+            timestamp=timestamp,
+            last_price=last_price,
+            total_traded_volume=total_traded_volume,
+            total_traded_notional=total_traded_notional,
+            total_trade_count=total_trade_count,
+            **kwargs
+        )
+
     @property
     def mid_price(self):
         return (self.bid_price + self.ask_price) / 2
@@ -847,19 +989,25 @@ class TransactionData(MarketData):
         super().__init__(ticker=ticker, timestamp=timestamp)
 
         self.update(
-            price=float(price),
-            volume=float(volume),
+            price=price,
+            volume=volume,
             side=side if isinstance(side, (int, float)) else TransactionSide(side).value
         )
 
         if 'multiplier' in kwargs:
-            self['multiplier'] = float(kwargs['multiplier'])
+            self['multiplier'] = kwargs['multiplier']
 
         if 'notional' in kwargs:
-            self['notional'] = float(kwargs['notional'])
+            self['notional'] = kwargs['notional']
 
         if 'transaction_id' in kwargs:
             self['transaction_id'] = kwargs['transaction_id']
+
+        if 'buy_id' in kwargs:
+            self['buy_id'] = kwargs['buy_id']
+
+        if 'sell_id' in kwargs:
+            self['sell_id'] = kwargs['sell_id']
 
         if kwargs:
             self['additional'] = dict(kwargs)
@@ -880,6 +1028,53 @@ class TransactionData(MarketData):
 
         self = cls(**json_dict)
         return self
+
+    def to_list(self) -> list[float | int | str | bool]:
+        return [self.__class__.__name__,
+                self.ticker,
+                self.timestamp,
+                self.price,
+                self.volume,
+                self['side'],
+                self.get('multiplier'),
+                self.get('notional'),
+                self.get('transaction_id'),
+                self.get('buy_id'),
+                self.get('sell_id')]
+
+    @classmethod
+    def from_list(cls, data_list: list[float | int | str | bool]) -> TransactionData:
+        (dtype, ticker, timestamp, price, volume, side,
+         multiplier, notional, transaction_id, buy_id, sell_id) = data_list
+
+        if dtype != cls.__name__:
+            raise TypeError(f'dtype mismatch, expect {cls.__name__}, got {dtype}.')
+
+        kwargs = {}
+
+        if multiplier is not None:
+            kwargs['multiplier'] = multiplier
+
+        if notional in kwargs:
+            kwargs['notional'] = notional
+
+        if transaction_id in kwargs:
+            kwargs['transaction_id'] = transaction_id
+
+        if buy_id in kwargs:
+            kwargs['buy_id'] = buy_id
+
+        if sell_id in kwargs:
+            kwargs['sell_id'] = sell_id
+
+        return cls(
+            ticker=ticker,
+            timestamp=timestamp,
+            price=price,
+            volume=volume,
+            side=side,
+            **kwargs
+        )
 
     @classmethod
     def merge(cls, trade_data_list: list[TransactionData]) -> TransactionData | None:
@@ -932,8 +1127,16 @@ class TransactionData(MarketData):
         return self.get('multiplier', 1.)
 
     @property
-    def transaction_id(self) -> Hashable | None:
+    def transaction_id(self) -> int | str | None:
         return self.get('transaction_id', None)
+
+    @property
+    def buy_id(self) -> int | str | None:
+        return self.get('buy_id', None)
+
+    @property
+    def sell_id(self) -> int | str | None:
+        return self.get('sell_id', None)
 
     @property
     def notional(self) -> float:
@@ -965,3 +1168,11 @@ class TradeData(TransactionData):
     @property
     def trade_volume(self) -> float:
         return self['volume']
+
+    @classmethod
+    def from_json(cls, json_message: str | bytes | bytearray | dict) -> TradeData:
+        return super(TradeData, cls).from_json(json_message=json_message)
+
+    @classmethod
+    def from_list(cls, data_list: list[float | int | str | bool]) -> TradeData:
+        return super(TradeData, cls).from_list(data_list=data_list)
