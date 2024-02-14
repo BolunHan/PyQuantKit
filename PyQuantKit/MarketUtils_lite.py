@@ -1264,7 +1264,7 @@ class _MarketDataMemoryBuffer(object, metaclass=abc.ABCMeta):
         self.ticker = RawArray(c_wchar, 32)  # max length of ticker is 32
         self.timestamp = RawValue(c_double)
 
-    def from_market_data(self, market_data: MarketData):
+    def update(self, market_data: MarketData):
         self.dtype.value = market_data.__class__.__name__
         self.ticker.value = market_data['ticker']
         self.timestamp.value = market_data['timestamp']
@@ -1283,8 +1283,8 @@ class OrderBookBuffer(_MarketDataMemoryBuffer):
         self.bid = [(RawValue(c_double), RawValue(c_double), RawValue(c_ulong)) for _ in range(self.max_level)]
         self.ask = [(RawValue(c_double), RawValue(c_double), RawValue(c_ulong)) for _ in range(self.max_level)]
 
-    def from_market_data(self, market_data: OrderBook):
-        super().from_market_data(market_data=market_data)
+    def update(self, market_data: OrderBook):
+        super().update(market_data=market_data)
 
         bid = market_data['bid']
         ask = market_data['ask']
@@ -1350,8 +1350,8 @@ class BarDataBuffer(_MarketDataMemoryBuffer):
         self.notional = RawValue(c_double)
         self.trade_count = RawValue(c_longlong)
 
-    def from_market_data(self, market_data: BarData):
-        super().from_market_data(market_data=market_data)
+    def update(self, market_data: BarData):
+        super().update(market_data=market_data)
 
         self.start_timestamp.value = market_data['start_timestamp'] if 'start_timestamp' in market_data else math.nan
         self.bar_span.value = market_data['bar_span'] if 'bar_span' in market_data else math.nan
@@ -1395,12 +1395,12 @@ class TickDataBuffer(_MarketDataMemoryBuffer):
         self.total_traded_notional = RawValue(c_double)
         self.total_trade_count = RawValue(c_longlong)
 
-    def from_market_data(self, market_data: TickData):
+    def update(self, market_data: TickData):
         """
         note that the order book is not stored in shared memory.
         use OrderBookShared to store the level2 data.
         """
-        super().from_market_data(market_data=market_data)
+        super().update(market_data=market_data)
 
         self.last_price.value = market_data.last_price
 
@@ -1448,8 +1448,8 @@ class TransactionDataBuffer(_MarketDataMemoryBuffer):
             sell_id=(RawValue(c_longlong), RawArray(c_wchar, 64)),
         )
 
-    def from_market_data(self, market_data: TradeData | TransactionData):
-        super().from_market_data(market_data=market_data)
+    def update(self, market_data: TradeData | TransactionData):
+        super().update(market_data=market_data)
 
         self.price.value = market_data['price']
         self.volume.value = market_data['volume']
