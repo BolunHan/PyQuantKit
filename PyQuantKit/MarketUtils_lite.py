@@ -387,6 +387,21 @@ class OrderBook(MarketData):
             else:
                 raise ValueError('Must NOT assign both price or level in kwargs')
 
+        def pop(self, price: float):
+            entry = self._dict.pop(price, None)
+            if entry is not None:
+                self._book.remove(entry)
+            else:
+                raise KeyError(f'Price {price} not exist in order book')
+            return entry
+
+        def remove(self, entry: OrderBook.OrderBookEntry):
+            try:
+                self._book.remove(entry)
+                self._dict.pop(entry.price)
+            except ValueError:
+                raise ValueError(f'Entry {entry} not exist in order book')
+
         def at_price(self, price: float):
             """
             get OrderBook.Book.Entry with specific price
@@ -406,11 +421,23 @@ class OrderBook(MarketData):
             """
             return self._book.__getitem__(level)
 
-        def add(self, price: float, volume: float, order: int = None):
-            if order:
-                self._book.append((price, volume, order))
+        def update(self, price: float, volume: float, order: int = None):
+            if price in self._dict:
+                if volume == 0:
+                    self.pop(price=price)
+                elif volume < 0:
+                    LOGGER.warning(f'Invalid volume {volume}, expect a positive float.')
+                    self.pop(price=price)
+                else:
+                    entry = self._dict[price]
+                    entry.volume = volume
             else:
-                self._book.append((price, volume, 0))
+                self.add(price=price, volume=volume, order=order)
+
+        def add(self, price: float, volume: float, order: int = None):
+            entry = (price, volume, order if order else 0)
+            self._dict[price] = entry
+            self._book.append(entry)
 
         def loc_volume(self, p0: float, p1: float):
             volume = 0.
@@ -445,11 +472,11 @@ class OrderBook(MarketData):
 
             return [entry[1] for entry in self._book]
 
-    def __init__(self, *, ticker: str, timestamp: float, **kwargs):
+    def __init__(self, *, ticker: str, timestamp: float, bid: list[tuple[float, float, int]] = None, ask: list[tuple[float, float, int]], **kwargs):
         super().__init__(ticker=ticker, timestamp=timestamp)
         self.update(
-            bid=kwargs.pop('bid', []),
-            ask=kwargs.pop('ask', [])
+            bid=[] if bid is None else bid,
+            ask=[] if ask is None else ask
         )
         self.parse(**kwargs)
 
@@ -503,7 +530,28 @@ class OrderBook(MarketData):
         data.update(kwargs)
 
         for name, value in data.items():
-            side, key, level = self._parse_entry_name(name=name, validate=validate)
+            split_str = name.split('_')
+
+            if validate:
+                if len(split_str) != 3:
+                    self.additional[name] = value
+
+                side, key, level = name.split('_')
+
+                if not (side == 'bid' or side == 'ask'):
+                    self.additional[name] = value
+
+                if not (key == 'price' or key == 'volume' or key == 'order'):
+                    self.additional[name] = value
+
+                if level.isnumeric():
+                    level = int(level)
+                else:
+                    self.additional[name] = value
+            else:
+                side, key, level = name.split('_')
+                level = int(level)
+
             book: list = self[side]
 
             if level <= 0:
@@ -833,40 +881,49 @@ class TickData(MarketData):
             ticker: str,
             last_price: float,
             timestamp: float,
+            bid_price: float = None,
+            bid_volume: float = None,
+            ask_price: float = None,
+            ask_volume: float = None,
             order_book: OrderBook = None,
             total_traded_volume: float = 0.,
             total_traded_notional: float = 0.,
             total_trade_count: int = 0,
             **kwargs
     ):
-        super().__init__(ticker=ticker, timestamp=timestamp)
-
-        if 'bid_price' in kwargs:
-            kwargs['bid_price_1'] = kwargs.pop('bid_price')
-
-        if 'ask_price' in kwargs:
-            kwargs['ask_price_1'] = kwargs.pop('ask_price')
-
-        if 'bid_volume' in kwargs:
-            kwargs['bid_volume_1'] = kwargs.pop('bid_volume')
-
-        if 'ask_volume' in kwargs:
-            kwargs['ask_volume_1'] = kwargs.pop('ask_volume')
+        super().__init__(ticker=ticker, timestamp=timestamp, **kwargs)
 
         self.update(
             last_price=last_price,
             total_traded_volume=total_traded_volume,
             total_traded_notional=total_traded_notional,
             total_trade_count=total_trade_count,
-            **kwargs
         )
+
+        if bid_price is not None:
+            self['bid_price'] = bid_price
+
+        if bid_volume is not None:
+            self['bid_volume'] = bid_volume
+
+        if ask_price is not None:
+            self['ask_price'] = ask_price
+
+        if ask_volume is not None:
+            self['ask_volume'] = ask_volume
 
         if order_book is not None:
             self['order_book'] = order_book
 
+        if kwargs:
+            self['additional'] = dict(kwargs)
+
     @property
-    def level_2(self) -> OrderBook:
-        return OrderBook(**self['order_book'])
+    def level_2(self) -> OrderBook | None:
+        if 'order_book' in self:
+            return OrderBook(**self['order_book'])
+        else:
+            return None
 
     @property
     def last_price(self) -> float:
@@ -874,19 +931,19 @@ class TickData(MarketData):
 
     @property
     def bid_price(self) -> float | None:
-        return self.get('bid_price_1')
+        return self.get('bid_price')
 
     @property
     def ask_price(self) -> float | None:
-        return self.get('ask_price_1')
+        return self.get('ask_price')
 
     @property
     def bid_volume(self) -> float | None:
-        return self.get('bid_volume_1')
+        return self.get('bid_volume')
 
     @property
     def ask_volume(self) -> float | None:
-        return self.get('ask_volume_1')
+        return self.get('ask_volume')
 
     @property
     def total_traded_volume(self) -> float:
@@ -918,13 +975,17 @@ class TickData(MarketData):
         return self
 
     def to_list(self) -> list[float | int | str | bool]:
+        """
+        note that to_list WILL NOT retain orderbook info.
+        to save all info, use to_json instead.
+        """
         return [self.__class__.__name__,
                 self.ticker,
                 self.timestamp,
                 self.last_price,
                 self.bid_price,
-                self.ask_price,
                 self.bid_volume,
+                self.ask_price,
                 self.ask_volume,
                 self.total_traded_volume,
                 self.total_traded_notional,
@@ -933,7 +994,7 @@ class TickData(MarketData):
     @classmethod
     def from_list(cls, data_list: list[float | int | str | bool]) -> TickData:
         (dtype, ticker, timestamp, last_price,
-         bid_price, ask_price, bid_volume, ask_volume,
+         bid_price, bid_volume, ask_price, ask_volume,
          total_traded_volume, total_traded_notional, total_trade_count) = data_list
 
         if dtype != cls.__name__:
@@ -964,15 +1025,11 @@ class TickData(MarketData):
         )
 
     @property
-    def mid_price(self):
+    def mid_price(self) -> float:
         return (self.bid_price + self.ask_price) / 2
 
     @property
     def market_price(self) -> float:
-        """
-        Last price for a TickData
-        :return:
-        """
         return self.last_price
 
 
@@ -984,33 +1041,33 @@ class TransactionData(MarketData):
             volume: float,
             timestamp: float,
             side: int | float | str | TransactionSide = 0,
+            multiplier: float = None,
+            notional: float = None,
+            transaction_id: str | int = None,
+            buy_id: str | int = None,
+            sell_id: str | int = None,
             **kwargs
     ):
-        super().__init__(ticker=ticker, timestamp=timestamp)
+        super().__init__(ticker=ticker, timestamp=timestamp, **kwargs)
 
-        self.update(
-            price=price,
-            volume=volume,
-            side=side if isinstance(side, (int, float)) else TransactionSide(side).value
-        )
+        self['price'] = price
+        self['volume'] = volume
+        self['side'] = int(side) if isinstance(side, (int, float)) else TransactionSide(side).value
 
-        if 'multiplier' in kwargs:
-            self['multiplier'] = kwargs['multiplier']
+        if multiplier is not None:
+            self['multiplier'] = multiplier
 
-        if 'notional' in kwargs:
-            self['notional'] = kwargs['notional']
+        if notional is not None:
+            self['notional'] = notional
 
-        if 'transaction_id' in kwargs:
-            self['transaction_id'] = kwargs['transaction_id']
+        if transaction_id is not None:
+            self['transaction_id'] = transaction_id
 
-        if 'buy_id' in kwargs:
-            self['buy_id'] = kwargs['buy_id']
+        if buy_id is not None:
+            self['buy_id'] = buy_id
 
-        if 'sell_id' in kwargs:
-            self['sell_id'] = kwargs['sell_id']
-
-        if kwargs:
-            self['additional'] = dict(kwargs)
+        if sell_id is not None:
+            self['sell_id'] = sell_id
 
     def __repr__(self):
         return f'<TransactionData>([{self.market_time:%Y-%m-%d %H:%M:%S}] {self.side.side_name} {self.ticker}, price={self.price}, volume={self.volume})'
