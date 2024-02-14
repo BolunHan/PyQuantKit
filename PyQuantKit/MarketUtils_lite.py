@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from multiprocessing import RawValue, RawArray
+from ctypes import c_ulong, c_double, c_wchar, c_int, c_longlong
 import abc
 import datetime
 import enum
@@ -472,7 +474,7 @@ class OrderBook(MarketData):
 
             return [entry[1] for entry in self._book]
 
-    def __init__(self, *, ticker: str, timestamp: float, bid: list[tuple[float, float, int]] = None, ask: list[tuple[float, float, int]], **kwargs):
+    def __init__(self, *, ticker: str, timestamp: float, bid: list[list[float | int]] = None, ask: list[list[float | int]], **kwargs):
         super().__init__(ticker=ticker, timestamp=timestamp)
         self.update(
             bid=[] if bid is None else bid,
@@ -567,7 +569,7 @@ class OrderBook(MarketData):
                 raise ValueError(f'Can not parse kwargs {name}.')
 
             while level > len(book):
-                book.append([float('nan'), 0, 0])
+                book.append([math.nan, 0, 0])
 
             book[level - 1][entry_idx] = value
 
@@ -616,17 +618,17 @@ class OrderBook(MarketData):
 
     @property
     def mid_price(self):
-        if np.isfinite(self.best_bid_price) and np.isfinite(self.best_ask_price):
+        if math.isfinite(self.best_bid_price) and math.isfinite(self.best_ask_price):
             return (self.best_bid_price + self.best_ask_price) / 2
         else:
-            return np.nan
+            return math.nan
 
     @property
     def spread(self):
-        if np.isfinite(self.best_bid_price) and np.isfinite(self.best_ask_price):
+        if math.isfinite(self.best_bid_price) and math.isfinite(self.best_ask_price):
             return self.best_ask_price - self.best_bid_price
         else:
-            return np.nan
+            return math.nan
 
     @property
     def spread_pct(self):
@@ -656,28 +658,28 @@ class OrderBook(MarketData):
         if book := self.bid:
             return book[0][0]
         else:
-            return np.nan
+            return math.nan
 
     @property
     def best_ask_price(self):
         if book := self.ask:
             return book[0][0]
         else:
-            return np.nan
+            return math.nan
 
     @property
     def best_bid_volume(self):
         if book := self.bid:
             return book[0][1]
         else:
-            return np.nan
+            return math.nan
 
     @property
     def best_ask_volume(self):
         if book := self.ask:
             return book[0][1]
         else:
-            return np.nan
+            return math.nan
 
 
 class BarData(MarketData):
@@ -711,13 +713,24 @@ class BarData(MarketData):
             raise ValueError('Must assign ether start_timestamp or bar_span or both.')
         elif start_timestamp is None:
             # self['start_timestamp'] = timestamp - bar_span.total_seconds()
-            self['bar_span'] = bar_span.total_seconds()
+            if isinstance(bar_span, datetime.timedelta):
+                self['bar_span'] = bar_span.total_seconds()
+            elif isinstance(bar_span, (int, float)):
+                self['bar_span'] = bar_span
+            else:
+                raise ValueError(f'Invalid bar_span, expect int, float or timedelta, got {bar_span}')
         elif bar_span is None:
             self['start_timestamp'] = start_timestamp
             # self['bar_span'] = timestamp - start_timestamp
         else:
             self['start_timestamp'] = start_timestamp
-            self['bar_span'] = bar_span.total_seconds()
+
+            if isinstance(bar_span, datetime.timedelta):
+                self['bar_span'] = bar_span.total_seconds()
+            elif isinstance(bar_span, (int, float)):
+                self['bar_span'] = bar_span
+            else:
+                raise ValueError(f'Invalid bar_span, expect int, float or timedelta, got {bar_span}')
 
     def __repr__(self):
         return f'<BarData>([{self.market_time:%Y-%m-%d %H:%M:%S}] {self.ticker}, open={self.open_price}, close={self.close_price}, high={self.high_price}, low={self.low_price})'
@@ -826,13 +839,13 @@ class BarData(MarketData):
     def is_valid(self, verbose=False) -> bool:
         try:
             assert type(self.ticker) is str, '{} Invalid ticker'.format(str(self))
-            assert np.isfinite(self.high_price), '{} Invalid high_price'.format(str(self))
-            assert np.isfinite(self.low_price), '{} Invalid low_price'.format(str(self))
-            assert np.isfinite(self.open_price), '{} Invalid open_price'.format(str(self))
-            assert np.isfinite(self.close_price), '{} Invalid close_price'.format(str(self))
-            assert np.isfinite(self.volume), '{} Invalid volume'.format(str(self))
-            assert np.isfinite(self.notional), '{} Invalid notional'.format(str(self))
-            assert np.isfinite(self.trade_count), '{} Invalid trade_count'.format(str(self))
+            assert math.isfinite(self.high_price), '{} Invalid high_price'.format(str(self))
+            assert math.isfinite(self.low_price), '{} Invalid low_price'.format(str(self))
+            assert math.isfinite(self.open_price), '{} Invalid open_price'.format(str(self))
+            assert math.isfinite(self.close_price), '{} Invalid close_price'.format(str(self))
+            assert math.isfinite(self.volume), '{} Invalid volume'.format(str(self))
+            assert math.isfinite(self.notional), '{} Invalid notional'.format(str(self))
+            assert math.isfinite(self.trade_count), '{} Invalid trade_count'.format(str(self))
             assert isinstance(self.bar_start_time, (datetime.datetime, datetime.date)), '{} Invalid bar_start_time'.format(str(self))
             assert isinstance(self.bar_span, datetime.timedelta), '{} Invalid bar_span'.format(str(self))
 
@@ -879,8 +892,8 @@ class TickData(MarketData):
     def __init__(
             self, *,
             ticker: str,
-            last_price: float,
             timestamp: float,
+            last_price: float,
             bid_price: float = None,
             bid_volume: float = None,
             ask_price: float = None,
@@ -900,16 +913,16 @@ class TickData(MarketData):
             total_trade_count=total_trade_count,
         )
 
-        if bid_price is not None:
+        if bid_price is not None and math.isfinite(bid_price):
             self['bid_price'] = bid_price
 
-        if bid_volume is not None:
+        if bid_volume is not None and math.isfinite(bid_volume):
             self['bid_volume'] = bid_volume
 
-        if ask_price is not None:
+        if ask_price is not None and math.isfinite(ask_price):
             self['ask_price'] = ask_price
 
-        if ask_volume is not None:
+        if ask_volume is not None and math.isfinite(ask_volume):
             self['ask_volume'] = ask_volume
 
         if order_book is not None:
@@ -1054,10 +1067,10 @@ class TransactionData(MarketData):
         self['volume'] = volume
         self['side'] = int(side) if isinstance(side, (int, float)) else TransactionSide(side).value
 
-        if multiplier is not None:
+        if multiplier is not None and math.isfinite(multiplier):
             self['multiplier'] = multiplier
 
-        if notional is not None:
+        if notional is not None and math.isfinite(notional):
             self['notional'] = notional
 
         if transaction_id is not None:
@@ -1148,9 +1161,9 @@ class TransactionData(MarketData):
         if sum_notional == 0:
             trade_price = 0
         elif sum_volume == 0:
-            trade_price = np.nan
+            trade_price = math.nan
         else:
-            trade_price = np.divide(sum_notional, sum_volume)
+            trade_price = sum_notional / sum_volume if sum_volume else math.inf * np.sign(sum_notional)
 
         trade_side = TransactionSide(trade_side_sign)
         trade_volume = abs(sum_volume)
@@ -1209,6 +1222,12 @@ class TransactionData(MarketData):
 
 
 class TradeData(TransactionData):
+    """
+    TradeData is an alias of TransactionData
+    TradeData can be initialized with 'trade_price' instead of 'price'; 'trade_volume' instead of 'volume'.
+    The corresponding properties are added.
+    """
+
     def __init__(self, **kwargs):
         if 'trade_price' in kwargs:
             kwargs['price'] = kwargs.pop('trade_price')
@@ -1228,8 +1247,276 @@ class TradeData(TransactionData):
 
     @classmethod
     def from_json(cls, json_message: str | bytes | bytearray | dict) -> TradeData:
+        # noinspection PyTypeChecker
         return super(TradeData, cls).from_json(json_message=json_message)
 
     @classmethod
     def from_list(cls, data_list: list[float | int | str | bool]) -> TradeData:
+        # noinspection PyTypeChecker
         return super(TradeData, cls).from_list(data_list=data_list)
+
+
+class _MarketDataMemoryBuffer(object, metaclass=abc.ABCMeta):
+    def __init__(self):
+        self.dtype = RawArray(c_wchar, 16)
+        self.ticker = RawArray(c_wchar, 32)  # max length of ticker is 32
+        self.timestamp = RawValue(c_double)
+
+    def from_market_data(self, market_data: MarketData):
+        self.dtype.value = market_data.__class__.__name__
+        self.ticker.value = market_data['ticker']
+        self.timestamp.value = market_data['timestamp']
+
+    @abc.abstractmethod
+    def to_market_data(self) -> MarketData:
+        ...
+
+
+class OrderBookBuffer(_MarketDataMemoryBuffer):
+    def __init__(self, max_level: int = 20):
+        super().__init__()
+
+        self.max_level = max_level
+
+        self.bid = [(RawValue(c_double), RawValue(c_double), RawValue(c_ulong)) for _ in range(self.max_level)]
+        self.ask = [(RawValue(c_double), RawValue(c_double), RawValue(c_ulong)) for _ in range(self.max_level)]
+
+    def from_market_data(self, market_data: OrderBook):
+        super().from_market_data(market_data=market_data)
+
+        bid = market_data['bid']
+        ask = market_data['ask']
+
+        for i in range(self.max_level):
+            bid_memory_array = self.bid[i]
+            ask_memory_array = self.ask[i]
+
+            if i < len(bid):
+                for bid_entry_value, bid_memory in zip(bid[i], bid_memory_array):
+                    bid_memory.value = bid_entry_value
+            else:
+                for bid_memory in bid_memory_array:
+                    bid_memory.value = 0
+
+            if i < len(ask):
+                for ask_entry_value, ask_memory in zip(ask[i], ask_memory_array):
+                    ask_memory.value = ask_entry_value
+            else:
+                for ask_memory in ask_memory_array:
+                    ask_memory.value = 0.
+
+    def to_market_data(self) -> OrderBook:
+        bid, ask = [], []
+
+        for i in range(self.max_level):
+            bid_memory_array = self.bid[i]
+            ask_memory_array = self.ask[i]
+
+            bid_price, bid_volume, bid_n_orders = [_.value for _ in bid_memory_array]
+            ask_price, ask_volume, ask_n_orders = [_.value for _ in ask_memory_array]
+
+            if bid_volume:
+                bid.append([bid_price, bid_volume, bid_n_orders])
+
+            if ask_volume:
+                ask.append([ask_price, ask_volume, ask_n_orders])
+
+            if bid_volume == ask_volume == 0:
+                break
+
+        order_book = OrderBook(
+            ticker=self.ticker.value,
+            timestamp=self.timestamp.value,
+            bid=bid,
+            ask=ask,
+        )
+
+        return order_book
+
+
+class BarDataBuffer(_MarketDataMemoryBuffer):
+    def __init__(self):
+        super().__init__()
+
+        self.start_timestamp = RawValue(c_double)
+        self.bar_span = RawValue(c_double)
+        self.high_price = RawValue(c_double)
+        self.low_price = RawValue(c_double)
+        self.open_price = RawValue(c_double)
+        self.close_price = RawValue(c_double)
+        self.volume = RawValue(c_double)
+        self.notional = RawValue(c_double)
+        self.trade_count = RawValue(c_longlong)
+
+    def from_market_data(self, market_data: BarData):
+        super().from_market_data(market_data=market_data)
+
+        self.start_timestamp.value = market_data['start_timestamp'] if 'start_timestamp' in market_data else math.nan
+        self.bar_span.value = market_data['bar_span'] if 'bar_span' in market_data else math.nan
+
+        self.high_price.value = market_data['high_price']
+        self.low_price.value = market_data['low_price']
+        self.open_price.value = market_data['open_price']
+        self.close_price.value = market_data['close_price']
+        self.volume.value = market_data['volume']
+        self.notional.value = market_data['notional']
+        self.trade_count.value = market_data['trade_count']
+
+    def to_market_data(self) -> BarData:
+        bar_data = BarData(
+            ticker=self.ticker.value,
+            timestamp=self.timestamp.value,
+            start_timestamp=self.start_timestamp.value if math.isfinite(self.start_timestamp.value) else None,
+            bar_span=self.bar_span.value if math.isfinite(self.bar_span.value) else None,
+            high_price=self.high_price.value,
+            low_price=self.low_price.value,
+            open_price=self.open_price.value,
+            close_price=self.close_price.value,
+            volume=self.volume.value,
+            notional=self.notional.value,
+            trade_count=self.trade_count.value
+        )
+
+        return bar_data
+
+
+class TickDataBuffer(_MarketDataMemoryBuffer):
+    def __init__(self):
+        super().__init__()
+
+        self.last_price = RawValue(c_double)
+        self.bid_price = RawValue(c_double)
+        self.bid_volume = RawValue(c_double)
+        self.ask_price = RawValue(c_double)
+        self.ask_volume = RawValue(c_double)
+        self.total_traded_volume = RawValue(c_double)
+        self.total_traded_notional = RawValue(c_double)
+        self.total_trade_count = RawValue(c_longlong)
+
+    def from_market_data(self, market_data: TickData):
+        """
+        note that the order book is not stored in shared memory.
+        use OrderBookShared to store the level2 data.
+        """
+        super().from_market_data(market_data=market_data)
+
+        self.last_price.value = market_data.last_price
+
+        self.bid_price.value = market_data['bid_price'] if 'bid_price' in market_data else math.nan
+        self.bid_volume.value = market_data['bid_volume'] if 'bid_volume' in market_data else math.nan
+        self.ask_price.value = market_data['ask_price'] if 'ask_price' in market_data else math.nan
+        self.ask_volume.value = market_data['ask_volume'] if 'ask_volume' in market_data else math.nan
+
+        self.total_traded_volume.value = market_data['total_traded_volume']
+        self.total_traded_notional.value = market_data['total_traded_notional']
+        self.total_trade_count.value = market_data['total_trade_count']
+
+    def to_market_data(self) -> TickData:
+        tick_data = TickData(
+            ticker=self.ticker.value,
+            timestamp=self.timestamp.value,
+            last_price=self.last_price.value,
+            bid_price=self.last_price.value,
+            bid_volume=self.last_price.value,
+            ask_price=self.last_price.value,
+            ask_volume=self.last_price.value,
+            order_book=None,
+            total_traded_volume=self.last_price.value,
+            total_traded_notional=self.last_price.value,
+            total_trade_count=self.last_price.value,
+        )
+
+        return tick_data
+
+
+class TransactionDataBuffer(_MarketDataMemoryBuffer):
+    def __init__(self):
+        super().__init__()
+
+        self.dtype = RawArray(c_wchar, 16)
+        self.price = RawValue(c_double)
+        self.volume = RawValue(c_double)
+        self.side = RawValue(c_int)
+
+        self.multiplier = RawValue(c_double)
+        self.notional = RawValue(c_double)
+        self.id_map = dict(
+            transaction_id=(RawValue(c_longlong), RawArray(c_wchar, 64)),  # id can be a int, str or None
+            buy_id=(RawValue(c_longlong), RawArray(c_wchar, 64)),
+            sell_id=(RawValue(c_longlong), RawArray(c_wchar, 64)),
+        )
+
+    def from_market_data(self, market_data: TradeData | TransactionData):
+        super().from_market_data(market_data=market_data)
+
+        self.price.value = market_data['price']
+        self.volume.value = market_data['volume']
+        self.side.value = market_data['side']
+
+        if 'multiplier' in market_data:
+            self.multiplier.value = market_data['multiplier']
+        else:
+            self.multiplier.value = math.nan
+
+        if 'notional' in market_data:
+            self.multiplier.value = market_data['notional']
+        else:
+            self.multiplier.value = math.nan
+
+        for id_name in ['transaction_id', 'buy_id', 'sell_id']:
+            if id_name in market_data:
+                id_value = market_data[id_name]
+                if isinstance(id_value, int):
+                    self.id_map[id_name][0].value = id_value
+                    self.id_map[id_name][1].value = ''
+                elif isinstance(id_value, str):
+                    self.id_map[id_name][0].value = -1
+                    self.id_map[id_name][1].value = id_value
+                else:
+                    raise TypeError(f'Invalid {id_name} type: {type(id_name)}, expect int or str.')
+            else:
+                self.id_map[id_name][0].value = -1
+                self.id_map[id_name][1].value = ''
+
+    def to_market_data(self) -> TradeData | TransactionData:
+        if math.isnan(multiplier := self.multiplier.value):
+            multiplier = None
+
+        if math.isnan(notional := self.multiplier.value):
+            notional = None
+
+        id_map = {}
+        for id_name in ['transaction_id', 'buy_id', 'sell_id']:
+            id_int = self.id_map[id_name][0].value
+            id_str = self.id_map[id_name][1].value
+
+            if id_int == -1 and not id_str:
+                id_value = None
+            elif not id_str:
+                id_value = id_int
+            elif id_int == -1:
+                id_value = id_str
+            else:
+                raise ValueError(f'id_map can not contain both info of id_int={id_int}, id_str={id_str}.')
+
+            id_map[id_name] = id_value
+
+        if (dtype := self.dtype.value) == 'TransactionData':
+            constructor = TransactionData
+        elif dtype == 'TradeData':
+            constructor = TradeData
+        else:
+            raise NotImplementedError(f'Constructor for market data {dtype} not implemented.')
+
+        td = constructor(
+            ticker=self.ticker.value,
+            price=self.price.value,
+            volume=self.volume.value,
+            timestamp=self.timestamp.value,
+            side=self.side.value,
+            multiplier=multiplier,
+            notional=notional,
+            **id_map
+        )
+
+        return td
