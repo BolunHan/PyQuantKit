@@ -476,7 +476,7 @@ class OrderBook(MarketData):
 
             return [entry[1] for entry in self._book]
 
-    def __init__(self, *, ticker: str, timestamp: float, bid: list[list[float | int]] = None, ask: list[list[float | int]], **kwargs):
+    def __init__(self, *, ticker: str, timestamp: float, bid: list[list[float | int]] = None, ask: list[list[float | int]] = None, **kwargs):
         super().__init__(ticker=ticker, timestamp=timestamp)
         self.update(
             bid=[] if bid is None else bid,
