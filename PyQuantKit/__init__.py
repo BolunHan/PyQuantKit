@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__version__ = '0.2.2.post5'
+__version__ = '0.2.2.post6'
 
 import logging
 import sys
