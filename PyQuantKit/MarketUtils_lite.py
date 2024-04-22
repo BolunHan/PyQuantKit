@@ -1418,14 +1418,14 @@ class TickDataBuffer(_MarketDataMemoryBuffer):
             ticker=self.ticker.value,
             timestamp=self.timestamp.value,
             last_price=self.last_price.value,
-            bid_price=self.last_price.value,
-            bid_volume=self.last_price.value,
-            ask_price=self.last_price.value,
-            ask_volume=self.last_price.value,
+            bid_price=self.bid_price.value,
+            bid_volume=self.bid_volume.value,
+            ask_price=self.ask_price.value,
+            ask_volume=self.ask_volume.value,
             order_book=None,
-            total_traded_volume=self.last_price.value,
-            total_traded_notional=self.last_price.value,
-            total_trade_count=self.last_price.value,
+            total_traded_volume=self.total_traded_volume.value,
+            total_traded_notional=self.total_traded_notional.value,
+            total_trade_count=self.total_trade_count.value,
         )
 
         return tick_data
