@@ -7,7 +7,7 @@ import pandas as pd
 
 from . import LOGGER
 
-LOGGER = LOGGER.getChild(os.path.basename(os.path.splitext(__file__)[0]))
+LOGGER = LOGGER.getChild('TA')
 __all__ = ['TechnicalAnalysis']
 
 

@@ -18,7 +18,7 @@ from typing import Iterable, Sized
 
 from . import LOGGER
 
-LOGGER = LOGGER.getChild(os.path.basename(os.path.splitext(__file__)[0]))
+LOGGER = LOGGER.getChild('Console')
 __all__ = ['Progress', 'GetInput', 'GetArgs', 'count_ordinal', 'TerminalStyle', 'InteractiveShell', 'ShellTransfer']
 
 

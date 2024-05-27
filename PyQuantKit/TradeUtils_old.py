@@ -7,7 +7,7 @@ import uuid
 from enum import Enum
 
 from . import LOGGER
-from .MarketUtils_lite import TransactionSide, TransactionData
+from .market_utils import TransactionSide, TransactionData
 
 LOGGER = LOGGER.getChild('TradeUtils')
 __all__ = ['OrderState', 'OrderType', 'TradeInstruction', 'TradeReport']
