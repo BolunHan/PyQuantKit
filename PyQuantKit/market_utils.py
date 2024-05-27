@@ -13,14 +13,12 @@ from typing import overload
 
 import numpy as np
 
-from . import LOGGER
+from . import LOGGER, TIME_ZONE
 
 LOGGER = LOGGER.getChild('MarketUtils')
-__all__ = ['TIME_ZONE', 'TransactionSide',
+__all__ = ['TransactionSide',
            'MarketData', 'OrderBook', 'BarData', 'TickData', 'TransactionData', 'TradeData',
            'OrderBookBuffer', 'BarDataBuffer', 'TickDataBuffer', 'TransactionDataBuffer']
-
-TIME_ZONE = None
 
 
 class TransactionSide(enum.Enum):
