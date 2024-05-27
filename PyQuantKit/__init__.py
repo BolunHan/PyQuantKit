@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__version__ = '0.2.2.post6'
+__version__ = '0.3.0'
 
 import logging
 import sys
@@ -9,6 +9,7 @@ import time
 LOGGER: logging.Logger | None = None
 LOG_LEVEL = logging.INFO
 LOG_LEVEL_EVENT = LOG_LEVEL - 1
+TIME_ZONE = None
 
 
 class ColoredFormatter(logging.Formatter):
@@ -84,12 +85,17 @@ def set_logger(logger: logging.Logger):
     global LOGGER
     LOGGER = logger
 
+    market_utils.LOGGER = LOGGER.getChild('MarketUtils')
+    trade_utils.LOGGER = LOGGER.getChild('TradeUtils')
+    technical_analysis.LOGGER = LOGGER.getChild('TA')
+    console_utils.LOGGER = LOGGER.getChild('Console')
+
 
 _ = get_logger()
 
 from ._FinanceDecimal import *
-from .MarketUtils_lite import *
+from .market_utils import *
 # from .MarketUtils2 import *
-from .TechnicalAnalysis import *
-from .TradeUtils import *
-from .ConsoleUtils import *
+from .technical_analysis import *
+from .trade_utils import *
+from .console_utils import *
