@@ -497,7 +497,7 @@ class TradeInstruction(TradeBaseClass):
                     raise ValueError(f'Multiplier not match for order {self} and report {trade_report}.')
 
             if trade_report.volume + self.filled_volume > self.volume:
-                LOGGER.warning('Fatal error!\nTradeInstruction: \n\t{}\nTradeReport:\n\t{}'.format(str(TradeInstruction), '\n\t'.join([str(x) for x in self.trades.values()])))
+                LOGGER.warning('Fatal error!\nTradeInstruction: \n\t{}\nTradeReport:\n\t{}'.format(str(TradeInstruction), '\n\t'.join([str(x) for x in list(self.trades.values()) + [trade_report]])))
                 raise ValueError('Fatal error! trade reports filled volume exceed order volume!')
 
             self['filled_volume'] += abs(trade_report.volume)
